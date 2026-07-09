@@ -1,13 +1,17 @@
 # backend/main.py
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles  # ✅ ADD THIS IMPORT
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 import os
+import logging
 
-# ✅ Import the auth routes
-from backend.routes import auth
-from backend.routes import repositories
+# Import routes
+from backend.routes import auth, repositories
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="AI Migration Agent",
@@ -25,44 +29,45 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Include the auth router
+# ✅ FIX: Mount static files - THIS IS CRITICAL FOR RENDER
+app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
+
+# Templates
+templates = Jinja2Templates(directory="frontend/templates")
+
+# Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(repositories.router, prefix="/api/repositories", tags=["Repositories"])
 
-# ✅ MOUNT STATIC FILES - THIS IS THE KEY FIX!
-app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
-
-# Simple HTML response function
-def get_template_content(filename):
-    try:
-        with open(f"frontend/templates/{filename}", "r") as f:
-            return f.read()
-    except FileNotFoundError:
-        return f"<h1>Template not found: {filename}</h1>"
-
-@app.get("/")
+# ===== PAGE ROUTES =====
+@app.get("/", response_class=HTMLResponse)
 async def root():
     return {"message": "AI Migration Agent is running!"}
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+@app.get("/signup", response_class=HTMLResponse)
+async def signup_page(request: Request):
+    return templates.TemplateResponse("signup.html", {"request": request})
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_page(request: Request):
+    return templates.TemplateResponse("dashboard.html", {"request": request})
 
 @app.get("/health")
 async def health():
     return {"status": "healthy", "message": "Server is running"}
 
-@app.get("/login", response_class=HTMLResponse)
-async def login_page():
-    content = get_template_content("login.html")
-    return HTMLResponse(content=content)
-
-@app.get("/signup", response_class=HTMLResponse)
-async def signup_page():
-    content = get_template_content("signup.html")
-    return HTMLResponse(content=content)
-
-@app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard_page():
-    content = get_template_content("dashboard.html")
-    return HTMLResponse(content=content)
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)
+
+@app.on_event("startup")
+async def startup():
+    from backend.core.database import Base, engine
+    from backend.models.user import User, UserProfile
+    from backend.models.migration import MigrationJob, MigrationFile, MigrationReview, MigrationHistory
+    Base.metadata.create_all(bind=engine)
+    print("✅ Database tables created/verified")
