@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 import os
 
 app = FastAPI()
@@ -23,10 +23,10 @@ app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
 # Templates
 templates = Jinja2Templates(directory="frontend/templates")
 
-# ===== ROOT — ONLY ONE! =====
+# ===== ROOT — REDIRECT TO LOGIN =====
 @app.get("/")
 async def root():
-    return {"message": "AI Migration Agent is running!"}
+    return RedirectResponse(url="/login")
 
 # ===== HEALTH =====
 @app.get("/health")
